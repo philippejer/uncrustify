@@ -40,6 +40,7 @@ struct tok_info
       , idx(0)
       , row(1)
       , col(1)
+      , blank_line(true)
    {
    }
 
@@ -47,6 +48,7 @@ struct tok_info
    size_t idx;
    size_t row;
    size_t col;
+   bool blank_line;
 };
 
 
@@ -123,14 +125,20 @@ struct tok_ctx
                c.row++;
                c.col = 1;
             }
+            c.blank_line = true;
             break;
 
          case '\r':
             c.row++;
             c.col = 1;
+            c.blank_line = true;
             break;
 
          default:
+            if (ch != ' ')
+            {
+               c.blank_line = false;
+            }
             c.col++;
             break;
          }
@@ -504,13 +512,16 @@ static bool parse_comment(tok_ctx &ctx, chunk_t &pc)
    bool   is_cs   = language_is_set(LANG_CS);
    size_t d_level = 0;
 
-   // does this start with '/ /' or '/ *' or '/ +' (d)
-   if (  (ctx.peek() != '/')
-      || (  (ctx.peek(1) != '*')
-         && (ctx.peek(1) != '/')
-         && ((ctx.peek(1) != '+') || !is_d)))
-   {
-      return(false);
+   bool is_probably_cs_attribute = is_cs && ctx.c.blank_line && ctx.peek() == '[';
+   if (!is_probably_cs_attribute) {
+      // does this start with '/ /' or '/ *' or '/ +' (d)
+      if (  (ctx.peek() != '/')
+         || (  (ctx.peek(1) != '*')
+            && (ctx.peek(1) != '/')
+            && ((ctx.peek(1) != '+') || !is_d)))
+      {
+         return(false);
+      }
    }
    ctx.save();
 
@@ -520,7 +531,7 @@ static bool parse_comment(tok_ctx &ctx, chunk_t &pc)
 
    pc.str.append(ch);    // second char
 
-   if (ch == '/')
+   if (ch == '/' || is_probably_cs_attribute)
    {
       set_chunk_type(&pc, CT_COMMENT_CPP);
 
